@@ -1,7 +1,5 @@
 import copy
 
-min_mana_spent = float('inf')
-
 SPELLS = {
     "Magic Missile": {"cost": 53, "damage": 4, "heal": 0, "duration": 0},
     "Drain": {"cost": 73, "damage": 2, "heal": 2, "duration": 0},
@@ -10,49 +8,78 @@ SPELLS = {
     "Recharge": {"cost": 229, "mana": 101, "duration": 5},
 }
 
+# Global variable to track the minimum mana spent
+min_mana_spent = float("inf")
+
+# Initial game state
+initial_state = {
+    "hp": 50,
+    "mana": 500,
+    "boss_hp": 58,
+    "boss_damage": 9,
+    "armor": 0,
+    "effects": {},  # Active effects (spell: (turns left, value))
+    "mana_spent": 0
+}
+
+
 def apply_effects(state):
+    """Applies all active effects at the start of a turn."""
     new_state = copy.deepcopy(state)
-    to_remove = []
+    expired_effects = []
 
-    for effect, (timer, value) in new_state["effects"].items():
-        if timer > 0:
-            if effect == "Shield":
+
+
+    for spell, (timer,value) in new_state["effects"].items():
+        if timer>0:
+            if spell=="Shield":
                 new_state["armor"] = 7
-            elif effect == "Poison":
-                new_state["boss_hp"] -= 3
-            elif effect == "Recharge":
-                new_state["mana"] += 101
-
-            new_state["effects"][effect] = (timer - 1, value)
-            if new_state["effects"][effect][0] == 0:
-                to_remove.append(effect)
-
-    for effect in to_remove:
+            elif spell == "Poison":
+                new_state["boss_hp"] -=3
+            elif spell =="Recharge":
+                new_state["mana"] +=101
+        # Reduce duration
+        new_state["effects"][spell] = (timer-1,value)
+        if new_state["effects"][spell][0] ==0:
+            expired_effects.append(spell)
+    # Remove expired effects
+    for effect in expired_effects:
         del new_state["effects"][effect]
-        if effect == "Shield":
+        if effect=="Shield":
             new_state["armor"] = 0
 
     return new_state
 
-def dfs(state):
+
+def dfs(state,hardMode):
+    """Recursive DFS to explore all possible spell sequences."""
     global min_mana_spent
 
-    state = apply_effects(state)  # Apply effects at the start of the player's turn
+    if hardMode:
+        state["hp"]-=1
+        if state["hp"] <=0:
+            return
 
-    if state["boss_hp"] <= 0:
+    # Apply effects at the start of the player's turn
+    state = apply_effects(state)
+
+    # If the boss is already dead after effects, update min_mana_spent and stop
+    if state["boss_hp"]<=0:
         min_mana_spent = min(min_mana_spent, state["mana_spent"])
         return
 
+    # Try casting each spell
     for spell, details in SPELLS.items():
-        if spell in state["effects"] and spell != "Recharge": # can recast recharge
+        if spell in state["effects"]:
             continue
-        if state["mana"] < details["cost"]:
+        if state["mana"]< details["cost"]:
             continue
-        if state["mana_spent"] + details["cost"] >= min_mana_spent:  # Pruning
+        if details["cost"] + state["mana_spent"] >= min_mana_spent:
             continue
 
+        # Create new state for the next move
         new_state = copy.deepcopy(state)
-        new_state["mana"] -= details["cost"]
+        new_state["mana"] -=details["cost"]
         new_state["mana_spent"] += details["cost"]
 
         if details["duration"] > 0:
@@ -63,28 +90,27 @@ def dfs(state):
 
         new_state = apply_effects(new_state)  # Apply effects after spell cast
 
-        if new_state["boss_hp"] <= 0:
+        # If boss is dead after applying effects, update min mana and stop
+        if new_state["boss_hp"]<=0:
             min_mana_spent = min(min_mana_spent, new_state["mana_spent"])
             continue
 
-        boss_damage = max(1, state["boss_damage"] - new_state["armor"])  # Use new_state armor
-        new_state["hp"] -= boss_damage
+        # Boss attacks
+        boss_damage = max(1,state["boss_damage"]-new_state["armor"])
+        new_state["hp"] -=boss_damage
 
-        if new_state["hp"] > 0:
-            dfs(new_state)
+        # If wizard survives, continue search
+        if new_state["hp"]>0:
+            dfs(new_state,hardMode)
 
 
-# Initial game state (Example - you'll need to adjust this)
-initial_state = {
-    "hp": 50,
-    "mana": 500,
-    "boss_hp": 58,
-    "boss_damage": 9,
-    "armor": 0,
-    "effects": {},
-    "mana_spent": 0
-}
+if __name__=='__main__':
+    # Part 1:
+    min_mana_spent = float('inf')  # Reset for part 2
+    dfs(initial_state, False)
+    print("Minimum mana spent (Part 1):", min_mana_spent)
 
-if __name__ == "__main__":
-    dfs(initial_state)
-    print("Minimum mana spent:", min_mana_spent)
+    # Part 2:
+    min_mana_spent = float('inf')  # Reset for part 2
+    dfs(initial_state, True)
+    print("Minimum mana spent (Part 2):", min_mana_spent)
