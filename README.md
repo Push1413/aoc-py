@@ -1,2 +1,1 @@
-# aoc-py
- python solutions
+# Advent of code - py solutions
